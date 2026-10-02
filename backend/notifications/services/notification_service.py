@@ -36,11 +36,14 @@ def render_template(template, user):
         "body": body,
     }
 
-
 def fire_trigger(trigger_code, user):
     """
     Find the trigger and send notifications
     through all enabled channels.
+
+    Notification failures are isolated so that a
+    failed notification does not break the main
+    application action such as login/logout.
     """
 
     try:
@@ -50,8 +53,8 @@ def fire_trigger(trigger_code, user):
         )
     except NotificationTrigger.DoesNotExist:
         print(
-            f"Trigger '{trigger_code}' does not exist "
-            "or is inactive."
+            f"[NOTIFICATION] Trigger '{trigger_code}' "
+            "does not exist or is inactive."
         )
         return
 
@@ -61,33 +64,58 @@ def fire_trigger(trigger_code, user):
     )
 
     for template in templates:
+        try:
+            message = render_template(template, user)
 
-        message = render_template(
-            template,
-            user,
-        )
+            if template.channel == NotificationTemplate.Channel.EMAIL:
 
-        if template.channel == NotificationTemplate.Channel.EMAIL:
+                if not user.email:
+                    print(
+                        f"[EMAIL] User {user.username} "
+                        "does not have an email address."
+                    )
+                    continue
 
-            send_email(
-                recipient=user.email,
-                subject=message["subject"],
-                body=message["body"],
-            )
-
-        elif template.channel == NotificationTemplate.Channel.WHATSAPP:
-
-            # We'll add user's phone number later.
-            print(
-                "[WHATSAPP] Provider integration pending."
-            )
-
-        elif template.channel == NotificationTemplate.Channel.WEB_PUSH:
-            subscriptions = PushSubscription.objects.filter(user=user)
-
-            for subscription in subscriptions:
-                send_web_push(
-                    subscription,
-                    message["subject"] or "Notification",
-                    message["body"],
+                send_email(
+                    recipient=user.email,
+                    subject=(
+                        message["subject"]
+                        or "Notification System"
+                    ),
+                    body=message["body"],
                 )
+
+                print(
+                    f"[EMAIL] Notification sent to {user.email}"
+                )
+
+            elif (
+                template.channel
+                == NotificationTemplate.Channel.WHATSAPP
+            ):
+                print(
+                    "[WHATSAPP] Provider integration pending."
+                )
+
+            elif (
+                template.channel
+                == NotificationTemplate.Channel.WEB_PUSH
+            ):
+                subscriptions = PushSubscription.objects.filter(
+                    user=user
+                )
+
+                for subscription in subscriptions:
+                    send_web_push(
+                        subscription,
+                        message["subject"] or "Notification",
+                        message["body"],
+                    )
+
+        except Exception as exc:
+            print(
+                f"[NOTIFICATION ERROR] "
+                f"Trigger={trigger_code}, "
+                f"Channel={template.channel}, "
+                f"Error={exc}"
+            )
