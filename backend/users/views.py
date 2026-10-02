@@ -19,10 +19,10 @@ class LoginView(APIView):
 
         user = serializer.validated_data["user"]
 
-        fire_trigger(
-            trigger_code="login",
-            user=user,
-        )
+        # fire_trigger(
+        #     trigger_code="login",
+        #     user=user,
+        # )
 
         refresh = RefreshToken.for_user(user)
 
